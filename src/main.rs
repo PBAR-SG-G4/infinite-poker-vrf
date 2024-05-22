@@ -1,4 +1,8 @@
-use schnorrkel::{Keypair, vrf::{VRFInOut, VRFProof, VRFProofBatchable, VRFOutput}, context::signing_context};
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+
+use schnorrkel::{Keypair, vrf::{VRFInOut, VRFPreOut, VRFProof}, context::signing_context};
 use sha2::{Sha256, Digest};
 use rand::Rng;
 
@@ -12,7 +16,7 @@ fn main() {
     let seed: [u8; 32] = rng.gen();
     let mut hasher = Sha256::new();
     hasher.update(seed);
-    let commitment = hasher.finalize();
+    let _commitment = hasher.finalize();
 
     // Assume all players reveal their seeds and we combine them
     let revealed_seeds: Vec<[u8; 32]> = vec![seed];  // Simplified for one player
@@ -26,20 +30,17 @@ fn main() {
     let vrf_output = keypair.vrf_sign(context.bytes(&final_input_hash));
     let (io, proof, _batchable) = vrf_output; // Include the third element in the destructuring
 
-    // Convert VRFInOut to VRFOutput for verification
-    let vrf_output_for_verification = VRFOutput {
-        io,
-        proof,
-    };
+    // Convert VRFInOut to VRFPreOut for verification
+    let vrf_preout_for_verification = io.to_preout();
 
     // Reveal and determine winner
-    let verified = keypair.public.vrf_verify(context.bytes(&final_input_hash), &vrf_output_for_verification.io, &vrf_output_for_verification.proof)
+    let verified = keypair.public.vrf_verify(context.bytes(&final_input_hash), &vrf_preout_for_verification,  &proof)
         .map_err(|e| format!("Invalid VRF proof: {:?}", e)).is_ok();
 
     if verified {
-        // Convert context to byte slice for make_bytes method
-        let context_bytes: &[u8] = context.bytes(&final_input_hash);
-        let card_value = vrf_output_for_verification.io.make_bytes(context_bytes)[0] % 52;
+        // Convert to bytes
+        let vrf_bytes = vrf_preout_for_verification.to_bytes();
+        let card_value = vrf_bytes[0] % 52;
         println!("Card drawn: {}", card_value);
     } else {
         println!("VRF proof verification failed.");
